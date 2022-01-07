@@ -42,6 +42,7 @@ class DeleteMessageTask:
         self.messageId = messageId
 
 class ctxSubclass:
+
     def __init__(self, ctxDict):
         for key in ctxDict:
             setattr(self, key, ctxDict[key])
@@ -69,8 +70,6 @@ class context:
 
     def deleteMessage(self, priority = False):
         self.bot.addTask(DeleteMessageTask(self.channel_id, self.id), priority)
-
-
 class Client(discum.Client):
 
     commands = {}
@@ -99,11 +98,10 @@ class Client(discum.Client):
         ctx.content = ctx.content.removeprefix(self.prefix)
         desiredCommand = ctx.content.split(" ")[0]
         ctx.content = ctx.content.removeprefix(desiredCommand + " ")
-        
+
         for command in self.commands:
             if(desiredCommand in self.commands[command]):
                 command(ctx)
-
 
     def messageHook(self, resp):
 
@@ -138,7 +136,7 @@ class Client(discum.Client):
         
         return decorator
             
-    def on_message(self, aliases = []): #simply pasted from def command
+    def on_message(self, aliases = []):
 
         def decorator(func):
 
