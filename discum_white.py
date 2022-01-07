@@ -1,4 +1,5 @@
 import threading, time, discum, json
+from discum.gateway.gateway import GatewayServer
 
 def preventRatelimit(discreply):
     if "retry_after" in discreply.text:
@@ -70,12 +71,48 @@ class context:
 
     def deleteMessage(self, priority = False):
         self.bot.addTask(DeleteMessageTask(self.channel_id, self.id), priority)
-class Client(discum.Client):
+
+class CustomGatewayServer(GatewayServer):
 
     commands = {}
     onMessageFunctions = []
+
     prefix = "!"
     userId = ""
+    bot = None
+
+    def parseCommand(self, ctx):
+
+        ctx.content = ctx.content.removeprefix(self.prefix)
+        desiredCommand = ctx.content.split(" ")[0]
+        ctx.content = ctx.content.removeprefix(desiredCommand + " ")
+
+        for command in self.commands:
+            if(desiredCommand in self.commands[command]):
+                command(ctx)
+
+    def _response_loop(self, resp):
+
+        if resp.event.ready_supplemental:  # ready_supplemental is sent after ready
+            user = self.session.user
+            print("Logged in as {}#{}".format(
+                user['username'], user['discriminator']))
+            self.userId = user['id']
+            return
+
+        if not resp.event.message:
+            return       
+        
+        ctx = context(resp.parsed.auto(), self.bot)
+
+        for func in self.onMessageFunctions:
+            func(ctx)
+
+        if (ctx.author.id == self.userId and ctx.content.startswith(self.prefix)):
+            self.parseCommand(ctx)
+
+class Client(discum.Client):
+    
     tasks = []
 
     #task handling
@@ -93,45 +130,15 @@ class Client(discum.Client):
 
             self.tasks.append(task)
 
-    def parseCommand(self, ctx):
-
-        ctx.content = ctx.content.removeprefix(self.prefix)
-        desiredCommand = ctx.content.split(" ")[0]
-        ctx.content = ctx.content.removeprefix(desiredCommand + " ")
-
-        for command in self.commands:
-            if(desiredCommand in self.commands[command]):
-                command(ctx)
-
-    def messageHook(self, resp):
-
-        if resp.event.ready_supplemental:  # ready_supplemental is sent after ready
-            user = self.gateway.session.user
-            print("Logged in as {}#{}".format(
-                user['username'], user['discriminator']))
-            self.userId = user['id']
-            return
-
-        if not resp.event.message:
-            return       
-        
-        ctx = context(resp.parsed.auto(), self)
-
-        for func in self.onMessageFunctions:
-            func(ctx)
-
-        if (ctx.author.id == self.userId and ctx.content.startswith(self.prefix)):
-            self.parseCommand(ctx)
-
     def command(self, aliases = []):
 
         def decorator(func):
 
-            for command in self.commands:
-                if(func.__name__ in self.commands[command]):
+            for command in self.gateway.commands:
+                if(func.__name__ in self.gateway.commands[command]):
                     raise Exception("Command already exists: " + func.__name__ )#I'm throwing exceptions, real stuff right here
 
-            self.commands[func] = [func.__name__] + aliases
+            self.gateway.commands[func] = [func.__name__] + aliases
             return True
         
         return decorator
@@ -140,10 +147,10 @@ class Client(discum.Client):
 
         def decorator(func):
 
-            if(func in self.onMessageFunctions):
+            if(func in self.gateway.onMessageFunctions):
                 raise Exception("function already exists: " + func.__name__)
 
-            self.onMessageFunctions.append(func)
+            self.gateway.onMessageFunctions.append(func)
             return True
 
         return decorator
@@ -151,7 +158,8 @@ class Client(discum.Client):
     def __init__(self, token, log=False, prefix = "!"):
         super(Client, self).__init__(token=token, log=log)
 
-        self.prefix = prefix
-        self.gateway._after_message_hooks.append(self.messageHook)
+        self.gateway = CustomGatewayServer(self.websocketurl, self.__user_token, self.__super_properties, self.s, self.discord, self.log)
+        self.gateway.bot = self
+        self.gateway.prefix = prefix
 
         threading.Thread(target = self.taskHandler).start() #starting the task handler
