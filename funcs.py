@@ -1,27 +1,10 @@
-import os
-import json
-import time
-import commands
-
-import configs as cfg
-
-bot = None
-
-
-def preventRatelimit(discreply):
-    if "retry_after" in discreply.text:
-        jdata = json.loads(discreply.text)
-        print(f">{jdata['retry_after']} TIMEOUT")
-        # wait as long as discord said
-        time.sleep(jdata['retry_after'])
-
+import os, time, json
 
 def loadEmotes():
     global emoteDictionary
     f = open('emojis.json', 'r')
     emoteDictionary = json.load(f)
     f.close()
-
 
 def loadGifs():
     print(">Loading Gifs...")
@@ -35,7 +18,6 @@ def loadGifs():
         with open("giflist.json", "r") as gifFile:
             gifs = json.loads(gifFile.read())
     return gifs
-
 
 def getEmojis(bot, ctx):
     emojiList = {}
@@ -57,60 +39,11 @@ def getEmojis(bot, ctx):
     f.close()
     loadEmotes()
 
-
-def logger(ctx):
-    if not (hasattr(ctx, 'guild_id')):
-        guildName = "Direct-messages"
-        channelName = f"{ctx.author.username}-{ctx.author.id}"
-        guildPath = f"logger\\{guildName}"
-        channelPath = guildPath + f"\\{channelName}.{cfg.logFormat}"
-
-    else:
-        guildName = bot.gateway.session.guild(ctx.guild_id).name
-        channelName = bot.gateway.session.guild(ctx.guild_id).channel(ctx.channel_id)['name']
-        guildPath = f"logger\\{guildName}_{ctx.guild_id}"
-        channelPath = guildPath + \
-            f"\\{channelName}-{ctx.channel_id}.{cfg.logFormat}"
-
-    if not(os.path.exists("logger")):
-        os.makedirs("logger")
-
-    if not(os.path.exists(guildPath)):
-        os.makedirs(guildPath)
-
-    if not(os.path.exists(channelPath)):
-        with open(channelPath, "w") as f:
-            f.write("==== BEGINNING ====\n")
-
-    with open(channelPath, "a", encoding="utf-8") as f:
-        timestamp = ctx.timestamp.replace("T", " ")
-        timestamp = timestamp.split(".")
-        timestamp = timestamp[0]
-
-        if(hasattr(ctx, "message_reference")):  # checking if the message was a reply
-            f.write(f"REPLY TO: {ctx.message_reference.message_id}\n")
-        f.write(
-            f"{ctx.author.username}#{ctx.author.discriminator} AT {timestamp} --- Message ID {ctx.id}\n{ctx.content}\n\n")
-
-
-def handleReactSpam(ctx):
-    if(ctx.author.id in commands.data['userid']):
-        for emoji in commands.data['userid'][ctx.author.id]:
-            ctx.addReaction(emoji)
-
-    for word in ctx.content.split(" "):
-        if(word in commands.data['keyword']):
-            for emoji in commands.data['keyword'][word]:
-                ctx.addReaction(emoji)
-            break
-
-
 def loadJson(filename, enctype='utf-16'):
     playlist_file = open(filename, encoding=enctype)
     playlists = json.load(playlist_file)
     playlist_file.close()
     return playlists
-
 
 def writeJson(file, data, enctype='utf-16'):
     playlist_file = open(file, 'w', encoding=enctype)
